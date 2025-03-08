@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  # Zookeeper (nécessaire pour Kafka)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+
+  # Kafka Broker
+  kafka:
+    build:
+      context: ./ingestion
+      dockerfile: Dockerfile
+    hostname: kafka
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+      - ./ingestion:/home/appuser
+
+  # MongoDB
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+
+  # Cassandra
+  cassandra:
+    image: cassandra:latest
+    container_name: cassandra
+    ports:
+      - "9042:9042"
+    volumes:
+      - cassandra-data:/var/lib/cassandra
+      - ./scripts:/home
+    environment:
+      - CASSANDRA_CLUSTER_NAME=RandomUserCluster
+
+  # Spark (avec PySpark)
+  spark:
+    build:
+      context: ./spark_jobs
+      dockerfile: Dockerfile
+    container_name: spark
+    ports:
+      - "8080:8080"  # Spark UI
+    volumes:
+      - ./spark_jobs:/opt/spark_jobs 
+    environment:
+      - SPARK_MODE=master
+    depends_on:
+      - kafka
+      - mongodb
+      - cassandra
+
+  # Spark Worker (optionnel, pour un cluster multi-noeuds)
+  spark-worker:
+    image: bitnami/spark:latest
+    container_name: spark-worker
+    depends_on:
+      - spark
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark:7077
+    volumes:
+      - ./spark_jobs:/opt/spark_jobs
+
+  # Application Streamlit pour le Dashboard
+  streamlit:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: streamlit
+    ports:
+      - "8501:8501"
+    depends_on:
+      - cassandra
+    volumes:
+      - ./dashboard:/app
+
+volumes:
+  zookeeper-data:
+  kafka-data:
+  mongodb-data:
+  cassandra-data:
