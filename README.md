@@ -1,4 +1,4 @@
-**## Plateforme de Streaming en Temps Réel pour la Gestion et l’Analyse d’Utilisateurs ##**
+** Plateforme de Streaming en Temps Réel pour la Gestion et l’Analyse d’Utilisateurs **
 
 Ce projet propose de créer une pipeline de bout en bout pour ingérer, traiter et visualiser un flux de données en temps quasi réel. 
 
